@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>抽牌解讀</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1ef;--fg:#1b2a28;--mute:#5d6e6b;--line:#c5cfcc;--ac:#2d5b4f;--acfg:#fff;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111918;--fg:#e3ebe8;--mute:#8fa09c;--line:#2d3b38;--ac:#7fc2af;--acfg:#0d1514;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111918;--fg:#e3ebe8;--mute:#8fa09c;--line:#2d3b38;--ac:#7fc2af;--acfg:#0d1514;color-scheme:dark}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.8 "Noto Serif TC","Songti TC","PMingLiU",serif}
+main{max-width:34rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+h1{font-size:1.5rem;margin:0 0 .25rem;letter-spacing:.2em}
+.sub{color:var(--mute);font-size:.875rem;margin:0 0 2rem}
+label{display:block;font-size:.875rem;color:var(--mute)}
+input{width:100%;font:inherit;color:var(--fg);background:transparent;border:0;border-bottom:1px solid var(--line);padding:.5rem 0;border-radius:0}
+input:focus{outline:2px solid var(--ac);outline-offset:3px}
+button{font:inherit;cursor:pointer}
+select{width:100%;font:inherit;color:var(--fg);background:transparent;border:0;border-bottom:1px solid var(--line);padding:.5rem 0;border-radius:0}
+select:focus{outline:2px solid var(--ac);outline-offset:3px}
+select option{background:var(--bg);color:var(--fg)}
+#go{display:block;width:100%;margin:1.5rem 0 2rem;padding:.85rem;background:var(--ac);color:var(--acfg);border:0;font-weight:700;letter-spacing:.4em}
+#go:focus-visible,.lk:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+pre{font:inherit;white-space:pre-wrap;word-break:break-word;margin:0}
+#res{font-size:1.125rem;min-height:9rem;padding:1rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#res .big{font-size:2rem;font-weight:700;color:var(--ac);letter-spacing:.15em}
+.hd{display:flex;justify-content:space-between;align-items:baseline;margin:2.5rem 0 .5rem}
+.hd h2{font-size:1rem;margin:0}
+.lk{background:none;border:0;color:var(--mute);text-decoration:underline;padding:0;font-size:.875rem}
+#hist{font-size:.9375rem;color:var(--mute)}
+#hist pre{padding:.6rem 0;border-bottom:1px solid var(--line)}
+.note{font-size:.8125rem;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+<h1>抽牌解讀</h1>
+<p class="sub">心裡想著一件事，抽一次。</p>
+<label for="q">輸入問題簡述（可留空）</label>
+<input id="q" maxlength="60" autocomplete="off">
+<label for="n" style="margin-top:1.25rem">狀態數量</label>
+<select id="n"><option value="1">1 個狀態</option><option value="2">2 個狀態</option><option value="3" selected>3 個狀態</option></select>
+<button id="go" type="button">抽</button>
+<div id="res" aria-live="polite"><pre>按下「抽」開始。</pre></div>
+<div class="hd"><h2>抽牌歷史</h2><button class="lk" id="clr" type="button">清除</button></div>
+<div id="hist"></div>
+<p class="note">歷史自動保存 30 天，只存在這個瀏覽器裡。</p>
+</main>
+<script>
+const FORT=["大吉","吉","小吉","平","小凶","凶","大凶"];
+const STATE=["早點睡","等一下 再想想 別衝動 衝動是魔鬼","神明愛你 有空相見","照顧自己","想太多 放寬心 順其自然","做就對了 行動","去看醫生!","活在當下","你不適合別想了","就是個垃圾 不要想垃圾","何德何能","想想你做了甚麼","自我欺騙?","可以","睡飽再說","有貴人","你很棒","不知道說甚麼 安慰你","吃飽太閒","趴 沒了 一切空想","那就去吧 ~~你就適合這種，垃圾(工作/伴侶/朋友)","注意行動交通外出","放手吧 放下吧","最近要注意周遭事物","不可以","做人留一線日後好相見","你已經很好了","卡住了","不定時炸彈","有小人","適合","進行中","鬼打牆","別問","行動才有結果","神明找你，快來","沒甚麼","對","先吃飽再說","你只有想而已 你要行動阿","時間還沒到 有點太早"];
+const ELE=["小金","小木","小水","小火","小土","大金","大木","大水","大火","大土"];
+const CATS=["事業","工作","求職","姻緣","考試","健康","遷居","出外","失物","幸運","人際關係"];
+const KEY="draw-history-v1",TTL=30*864e5;
+const $=id=>document.getElementById(id);
+function rnd(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+function load(){try{const t=Date.now();const l=JSON.parse(localStorage.getItem(KEY)||"[]");return Array.isArray(l)?l.filter(e=>e&&t-e.t<TTL):[]}catch(e){return[]}}
+function save(l){try{localStorage.setItem(KEY,JSON.stringify(l))}catch(e){}}
+function fmt(t){const d=new Date(t),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+function pickN(n){const r=[];for(let i=0;i<n;i++)r.push(STATE[rnd(STATE.length)]+(rnd(2)?"（正位）":"（逆位）"));return r}
+function text(e){const s=Array.isArray(e.s)?e.s:[e.s],k=["一","二","三"];return `${e.q?"問題："+e.q+"\n":""}吉凶：${e.f}\n${s.map((x,i)=>"狀態"+(s.length>1?k[i]:"")+"："+x).join("\n")}\n數字：${e.n}\n五行：${e.e}${e.c?"\n"+e.c.map((x,i)=>CATS[i]+"："+x).join("\n"):""}`}
+function render(){
+  const l=load();save(l);
+  const h=$("hist");h.textContent="";
+  if(!l.length){const p=document.createElement("pre");p.textContent="還沒有紀錄。";h.appendChild(p);return}
+  l.slice().reverse().forEach(e=>{const p=document.createElement("pre");p.textContent=fmt(e.t)+"\n"+text(e);h.appendChild(p)});
+}
+$("go").onclick=()=>{
+  const e={t:Date.now(),q:$("q").value.trim(),f:FORT[rnd(FORT.length)],s:pickN(+$("n").value),n:1+rnd(15),e:ELE[rnd(ELE.length)],c:CATS.map(()=>FORT[rnd(FORT.length)])};
+  const r=$("res");r.textContent="";
+  const b=document.createElement("div");b.className="big";b.textContent=e.f;
+  const p=document.createElement("pre");p.textContent=text(e).replace(/^吉凶：.*\n/m,"");
+  r.appendChild(b);r.appendChild(p);
+  const l=load();l.push(e);save(l);render();
+};
+$("clr").onclick=()=>{if(confirm("確定清除所有抽牌歷史？")){save([]);render()}};
+render();
+</script>
+</body>
+</html>
